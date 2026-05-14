@@ -7,7 +7,7 @@ from src.pipeline import build_preprocessing_pipeline
 
 def main():
     """Main orchestration script for the Car Price Data Science project."""
-    print("--- 🚀 Starting Data Pipeline ---\n")
+    print("--- 🚀 Starting Data Pipeline ---\n")     
 
     try:
         # 1. Auditoría de integridad SHA-256
@@ -15,9 +15,19 @@ def main():
             print("\n🛑 Pipeline stopped due to audit failure.")
             return
 
-        # 2. Demostración de chunk processing (escalabilidad para grandes volúmenes)
+        # # 2. Demostración de chunk processing (escalabilidad para grandes volúmenes)
+        # raw_dir = Path("data/raw")
+        # csv_file = list(raw_dir.glob("*.csv"))[0]
+        # process_in_chunks(csv_file, chunk_size=5000)
+
         raw_dir = Path("data/raw")
-        csv_file = list(raw_dir.glob("*.csv"))[0]
+        csv_files = list(raw_dir.glob("*.csv"))
+        if not csv_files:
+            raise FileNotFoundError("No CSV files found in data/raw")
+        
+        csv_file = csv_files[0]
+
+        # Procesamiento por bloques de 5000 (como lo tenían originalmente)
         process_in_chunks(csv_file, chunk_size=5000)
 
         # 3. Carga del dataset
@@ -32,16 +42,19 @@ def main():
         print("\n🏗️ Building and applying preprocessing pipeline...")
         # 'Model' se descarta: 915 valores únicos generarían 915 columnas con OHE
         columns_to_drop = ['Model']
-        pipeline = build_preprocessing_pipeline(df_opt, columns_to_drop=columns_to_drop)
+        target = 'MSRP'
+
+        pipeline = build_preprocessing_pipeline(df_opt, target_col=target, columns_to_drop=columns_to_drop)
 
         processed_matrix = pipeline.fit_transform(df_opt)
 
         # 6. Guardado del dataset procesado
         print("\n💾 Saving processed dataset...")
         feature_names = pipeline.named_steps['preprocessing'].get_feature_names_out()
-        feature_names = [name.replace('num__', '').replace('cat__', '') for name in feature_names]
+        clean_names = [name.split('__')[-1] for name in feature_names]
 
-        df_processed = pd.DataFrame(processed_matrix, columns=feature_names)
+    
+        df_processed = pd.DataFrame(processed_matrix, columns=clean_names, index=df_opt.index)
 
         processed_dir = Path("data/processed")
         processed_dir.mkdir(parents=True, exist_ok=True)
