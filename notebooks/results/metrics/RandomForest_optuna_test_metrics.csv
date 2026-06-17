@@ -1,0 +1,2 @@
+Model,R²,MAE,RMSE,MAPE %
+RandomForest_optuna,0.8006,5466.63,30528.86,25.75

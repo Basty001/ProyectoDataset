@@ -1,0 +1,6 @@
+Method,Model,Best R²
+GridSearchCV,Ridge,see cv_results.csv
+GridSearchCV,RandomForest_grid,see cv_results.csv
+RandomizedSearchCV,GradientBoosting_rand,see cv_results.csv
+Optuna (TPE),RandomForest_optuna,0.8795
+Optuna (TPE),GradientBoosting_optuna,0.9367

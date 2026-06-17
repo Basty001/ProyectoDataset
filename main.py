@@ -1,78 +1,135 @@
-import pandas as pd
+"""
+Main Orchestration Script.
+ 
+Runs the full machine learning pipeline end-to-end:
+ 
+  1. SHA-256 audit + memory optimisation
+  2. Preprocessing -> Train/Test split (80/20)
+  3. Unsupervised learning (PCA + KMeans / DBSCAN / Agglomerative)
+  4. Cross-validation comparison of supervised models
+  5. Hyperparameter tuning (GridSearchCV + RandomizedSearchCV + Optuna)
+  6. Train final model on complete training set
+  7. Final evaluation on held-out test set (first and only time)
+ 
+Usage
+-----
+  python main.py [--skip-audit] [--fast]
+ 
+  --skip-audit  : Skip SHA-256 hash check (useful for CI)
+  --fast        : Reduced trials/iterations for quick testing
+"""
+ 
+import argparse
+import sys
+import traceback
 from pathlib import Path
-from src.audit import audit_data
-from src.optimization import optimize_memory, process_in_chunks
-from src.pipeline import build_preprocessing_pipeline
-
-
+ 
+# Ensure src/ is importable
+sys.path.insert(0, str(Path(__file__).parent))
+ 
+from src.preprocessing import run_preprocessing
+from src.unsupervised import run_unsupervised
+from src.model_training import get_model_candidates
+from src.model_evaluation import (
+    cross_validate_models,
+    evaluate_on_test,
+    plot_model_comparison,
+    classification_report_by_price,
+)
+from src.tune import run_tuning
+ 
+RANDOM_STATE = 42  # Global seed for reproducibility
+ 
+ 
+def parse_args():
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(description="Car Price ML Pipeline")
+    parser.add_argument(
+        "--skip-audit",
+        action="store_true",
+        help="Skip SHA-256 audit of raw data",
+    )
+    parser.add_argument(
+        "--fast",
+        action="store_true",
+        help="Use fewer Optuna trials for quick testing",
+    )
+    return parser.parse_args()
+ 
+ 
 def main():
-    """Main orchestration script for the Car Price Data Science project."""
-    print("--- 🚀 Starting Data Pipeline ---\n")     
-
-    try:
-        # 1. Auditoría de integridad SHA-256
-        if not audit_data():
-            print("\n🛑 Pipeline stopped due to audit failure.")
-            return
-
-        # # 2. Demostración de chunk processing (escalabilidad para grandes volúmenes)
-        # raw_dir = Path("data/raw")
-        # csv_file = list(raw_dir.glob("*.csv"))[0]
-        # process_in_chunks(csv_file, chunk_size=5000)
-
-        raw_dir = Path("data/raw")
-        csv_files = list(raw_dir.glob("*.csv"))
-        if not csv_files:
-            raise FileNotFoundError("No CSV files found in data/raw")
-        
-        csv_file = csv_files[0]
-
-        # Procesamiento por bloques de 5000 (como lo tenían originalmente)
-        process_in_chunks(csv_file, chunk_size=5000)
-
-        # 3. Carga del dataset
-        print(f"\n📥 Loading raw data from {csv_file.name}...")
-        df_raw = pd.read_csv(csv_file)
-
-        # 4. Optimización de memoria (downcasting de tipos numéricos)
-        print("\n⚙️ Optimizing memory...")
-        df_opt = optimize_memory(df_raw)
-
-        # 5. Construcción y aplicación del pipeline
-        print("\n🏗️ Building and applying preprocessing pipeline...")
-        # 'Model' se descarta: 915 valores únicos generarían 915 columnas con OHE
-        columns_to_drop = ['Model']
-        target = 'MSRP'
-
-        pipeline = build_preprocessing_pipeline(df_opt, target_col=target, columns_to_drop=columns_to_drop)
-
-        processed_matrix = pipeline.fit_transform(df_opt)
-
-        # 6. Guardado del dataset procesado
-        print("\n💾 Saving processed dataset...")
-        feature_names = pipeline.named_steps['preprocessing'].get_feature_names_out()
-        clean_names = [name.split('__')[-1] for name in feature_names]
-
-    
-        df_processed = pd.DataFrame(processed_matrix, columns=clean_names, index=df_opt.index)
-
-        processed_dir = Path("data/processed")
-        processed_dir.mkdir(parents=True, exist_ok=True)
-        output_path = processed_dir / "processed_data.csv"
-
-        df_processed.to_csv(output_path, index=False)
-        print(f"✅ SUCCESS: Processed dataset saved at {output_path}")
-        print(f"📊 Original shape: {df_raw.shape} → Final shape: {df_processed.shape}")
-
-    except IndexError:
-        print("\n❌ CRITICAL ERROR: No se encontró ningún archivo CSV en 'data/raw'.")
-    except FileNotFoundError as e:
-        print(f"\n❌ CRITICAL ERROR: Archivo no encontrado: {e}")
-    except pd.errors.EmptyDataError:
-        print("\n❌ CRITICAL ERROR: El archivo CSV está vacío.")
-    except Exception as e:
-        print(f"\n❌ FATAL ERROR: El pipeline falló inesperadamente: {e}")
-
-
+    """Execute the full 7-step ML pipeline."""
+    args = parse_args()
+    n_optuna = 10 if args.fast else 50
+    n_rand = 10 if args.fast else 30
+ 
+    print("=" * 65)
+    print("    CAR PRICE ML PIPELINE  -  SCY1101 Evaluacion Parcial N2")
+    print("=" * 65)
+ 
+    # STEP 1 & 2: Audit + Preprocessing
+    print("\n\n>> STEP 1-2: Preprocessing")
+    x_train, x_test, y_train, y_test = run_preprocessing(
+        skip_audit=args.skip_audit
+    )
+ 
+    # STEP 3: Unsupervised Learning
+    print("\n\n>> STEP 3: Unsupervised Learning (PCA + Clustering)")
+    run_unsupervised(x_train)
+ 
+    # STEP 4: Cross-Validation comparison
+    print("\n\n>> STEP 4: Supervised Model Cross-Validation")
+    models = get_model_candidates()
+    cv_df = cross_validate_models(models, x_train, y_train)
+    plot_model_comparison(cv_df)
+    print(f"\n>> Best model by CV R2: {cv_df.iloc[0]['Model']}")
+ 
+    # STEP 5: Hyperparameter Tuning
+    print("\n\n>> STEP 5: Hyperparameter Tuning (Grid + Randomized + Optuna)")
+    best_model_name = run_tuning(
+        x_train, y_train,
+        n_optuna_trials=n_optuna,
+        n_rand_iter=n_rand,
+    )
+ 
+    # STEP 6: Final model confirmation
+    print(f"\n\n>> STEP 6: Final model '{best_model_name}' trained on full training set OK")
+ 
+    # STEP 7: Test Set Evaluation (FIRST AND ONLY TIME)
+    print("\n\n>> STEP 7: Final Test-Set Evaluation (first and only time)")
+    import joblib  # noqa: PLC0415
+    model_path = Path("models/trained_models") / f"{best_model_name}_final.pkl"
+    final_model = joblib.load(model_path)
+ 
+    test_metrics = evaluate_on_test(
+        final_model, x_test, y_test, model_name=best_model_name
+    )
+    classification_report_by_price(
+        y_test, final_model.predict(x_test), model_name=best_model_name
+    )
+ 
+    print("\n" + "=" * 65)
+    print("  OK:  PIPELINE COMPLETE")
+    print(f"  Final R2  : {test_metrics['R²']}")
+    print(f"  Final MAE : ${test_metrics['MAE']:,.2f}")
+    print(f"  Final RMSE: ${test_metrics['RMSE']:,.2f}")
+    print(f"  Final MAPE: {test_metrics['MAPE %']}%")
+    print("=" * 65)
+    print("\nOutputs saved in:")
+    print("  results/plots/    - all visualisations")
+    print("  results/metrics/  - CSV metric files")
+    print("  results/reports/  - price-bin classification reports")
+    print("  models/trained_models/ - serialised final model")
+ 
+ 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nPipeline interrupted by user.")
+        sys.exit(0)
+    except Exception as exc:  # noqa: BLE001
+        print(f"\nFATAL ERROR: {exc}")
+        traceback.print_exc()
+        sys.exit(1)
+ 

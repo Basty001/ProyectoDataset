@@ -1,61 +1,75 @@
-# Car Price Prediction — Data Preparation Pipeline 🚗
+# Proyecto Modelado – Car Price Prediction
+**SCY1101 – Programación para la Ciencia de Datos | Evaluación Parcial N°2**
 
-## Overview
-This repository contains a professional-grade Data Engineering and Data Science preprocessing pipeline. It is designed to clean, audit, and transform the **Car Features and MSRP Dataset** (predicting vehicle suggested retail price) for future Machine Learning modeling.
+## Descripción
+Pipeline completo de Machine Learning para predecir el precio (MSRP) de automóviles usando el dataset de Kaggle "Car Features and MSRP" (11.914 registros, 16 columnas).
 
-## Project Structure
-```text
-car_price_project/
+## Estructura del Proyecto
+```
+ProyectoDataset/
 ├── data/
-│   ├── raw/                  # Original, immutable datasets
-│   └── processed/            # Cleaned data ready for ML
-├── docs/                     # Technical reports and documentation
-├── notebooks/                # Jupyter notebooks for EDA and experimentation
-├── src/                      # Source code for custom transformers and auditing
-│   ├── __init__.py
-│   ├── audit.py              # Checksum and integrity validation
-│   ├── optimization.py       # Memory optimization and chunk processing
-│   ├── transformers.py       # Custom Scikit-Learn pipeline steps
-│   └── pipeline.py           # Pipeline construction
-├── main.py                   # Master orchestration script
-├── requirements.txt          # Python dependencies
-└── README.md                 # Project instructions
+│   ├── raw/               # Dataset original (data.csv + metadata.json)
+│   └── processed/         # Splits limpios (X_train, X_test, y_train, y_test)
+├── notebooks/
+│   ├── 01_exploratory_analysis.ipynb
+│   ├── 02_supervised_modeling.ipynb
+│   ├── 03_model_evaluation.ipynb
+│   ├── 04_hyperparameter_optimization.ipynb
+│   └── 05_final_analysis.ipynb
+├── src/
+│   ├── audit.py              # SHA-256 integrity check
+│   ├── optimization.py       # Memory optimisation + chunk processing
+│   ├── transformers.py       # Custom Scikit-learn transformers
+│   ├── pipeline.py           # Full cleaning pipeline
+│   ├── preprocessing.py      # Train/Test split (80/20)
+│   ├── unsupervised.py       # PCA + KMeans + DBSCAN + Agglomerative
+│   ├── model_training.py     # Model definitions + final training
+│   ├── model_evaluation.py   # CV, test evaluation, plots
+│   └── tune.py               # GridSearchCV + RandomizedSearchCV + Optuna
+├── models/trained_models/    # Serialised .pkl models
+├── results/
+│   ├── metrics/              # CSV metric files
+│   ├── plots/                # All visualisations
+│   └── reports/              # Price-bin classification reports
+├── main.py                   # Full pipeline orchestrator
+├── requirements.txt
+└── README.md
 ```
 
-## Setup Instructions
-To replicate this environment locally, follow these steps in your terminal:
+## Pipeline de 7 pasos
+| Paso | Módulo | Descripción |
+|------|--------|-------------|
+| 1 | `audit.py` | Verificación de integridad SHA-256 |
+| 2 | `preprocessing.py` | Limpieza + split 80/20 (sin data leakage) |
+| 3 | `unsupervised.py` | PCA (95% var) + KMeans / DBSCAN / Agglomerative |
+| 4 | `model_evaluation.py` | Cross-validation 5-fold de 7 modelos |
+| 5 | `tune.py` | GridSearchCV + RandomizedSearchCV + Optuna (TPE) |
+| 6 | `model_training.py` | Entrenamiento final en todo el training set |
+| 7 | `model_evaluation.py` | Evaluación única en test set + classification report |
 
-### 1. Clone the repository:
-```bash
-git clone <url-del-repositorio>
-cd car_price_project
-```
-
-### 2. Create and activate a virtual environment:
-```bash
-python3 -m venv .venv
-source .venv/bin/activate        # macOS/Linux
-.venv\Scripts\activate           # Windows
-```
-
-### 3. Install the required dependencies:
+## Instalación
 ```bash
 pip install -r requirements.txt
 ```
 
-## Execution
-To run the automated ETL and preprocessing pipeline:
+## Uso
 ```bash
+# Pipeline completo
 python main.py
+
+# Modo rápido (menos trials Optuna, útil para CI)
+python main.py --fast
+
+# Saltarse la verificación de hash
+python main.py --skip-audit --fast
 ```
 
----
+## Dependencias principales
+- Python ≥ 3.10
+- scikit-learn ≥ 1.3
+- pandas ≥ 2.0
+- optuna ≥ 3.0
+- numpy, matplotlib, seaborn, scipy, joblib
 
-
-## 👤 Autor
-
-**Bastian Soto**  
-Estudiante de Ciencia de Datos — Duoc UC  
-[LinkedIn](https://www.linkedin.com/in/bastian-isaias-soto-gonz%C3%A1lez-2395202a5/) · [GitHub](https://github.com/basty200) · [Kaggle](https://www.kaggle.com/bastianisaias)
-
----
+## Reproducibilidad
+Todos los componentes estocásticos usan `random_state=42`. El test set se guarda **antes** de ajustar el pipeline para evitar data leakage y solo se evalúa una vez al final.

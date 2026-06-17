@@ -205,3 +205,25 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+# ── ML Project específico ──────────────────────────────────────
+# Modelos serializados (archivos grandes, se regeneran con main.py)
+*.pkl
+*.joblib
+models/trained_models/
+
+# Datos procesados (se regeneran con preprocessing.py)
+data/processed/
+
+# Resultados generados (se regeneran con el pipeline)
+results/metrics/
+results/plots/
+results/reports/
+outputs/
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/
+
+# Optuna storage
+*.db
+optuna_studies/

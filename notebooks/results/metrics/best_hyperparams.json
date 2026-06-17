@@ -1,0 +1,37 @@
+{
+  "Ridge": {
+    "model__alpha": 100
+  },
+  "RandomForest_grid": {
+    "model__max_depth": null,
+    "model__n_estimators": 100
+  },
+  "GradientBoosting_rand": {
+    "model__learning_rate": 0.1784569549189997,
+    "model__max_depth": 6,
+    "model__min_samples_leaf": 2,
+    "model__n_estimators": 301,
+    "model__subsample": 0.9684482051282945
+  },
+  "RandomForest_optuna": {
+    "best_params": {
+      "n_estimators": 248,
+      "max_depth": 24,
+      "min_samples_split": 10,
+      "min_samples_leaf": 1,
+      "max_features": "sqrt"
+    },
+    "best_r2": 0.879457687423401
+  },
+  "GradientBoosting_optuna": {
+    "best_params": {
+      "n_estimators": 444,
+      "learning_rate": 0.04240548214218031,
+      "max_depth": 6,
+      "subsample": 0.6376336226185001,
+      "min_samples_leaf": 1,
+      "max_features": null
+    },
+    "best_r2": 0.9367176992142744
+  }
+}
